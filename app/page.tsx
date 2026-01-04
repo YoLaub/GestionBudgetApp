@@ -9,7 +9,7 @@ import { ArrowUpCircle, ArrowDownCircle, Wallet } from "lucide-react"
 
 export default async function DashboardPage() {
   const now = new Date()
-  
+
   // On charge tout en parallèle
   const [categories, transactions, stats] = await Promise.all([
     getCategories(),
@@ -19,26 +19,28 @@ export default async function DashboardPage() {
 
   return (
     <main className="container mx-auto p-4 space-y-8 pb-20">
-      
+
       {/* En-tête avec Solde */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mon Budget</h1>
           <p className="text-muted-foreground">
-             {format(now, 'MMMM yyyy', { locale: fr })}
+            {format(now, 'MMMM yyyy', { locale: fr })}
           </p>
         </div>
-        
+
         {/* Carte Résumé Rapide */}
-        <Card className="w-full md:w-auto min-w-[300px] bg-primary text-primary-foreground">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm opacity-80">Solde disponible</p>
-              <p className="text-2xl font-bold">{stats.balance > 0 ? '+' : ''}{stats.balance.toFixed(2)} €</p>
-            </div>
-            <Wallet className="h-8 w-8 opacity-50" />
-          </CardContent>
-        </Card>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm opacity-80">Solde disponible</p>
+            {/* On ajoute stats.rollover au solde du mois */}
+            <p className="text-2xl font-bold">
+              {(stats.balance + stats.rollover) > 0 ? '+' : ''}
+              {(stats.balance + stats.rollover).toFixed(2)} €
+            </p>
+          </div>
+          <Wallet className="h-8 w-8 opacity-50" />
+        </CardContent>
       </div>
 
       {/* Mini Stat Bar */}
@@ -64,7 +66,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        
+
         {/* COLONNE GAUCHE : Ajout */}
         <div className="space-y-4">
           <section>
@@ -80,7 +82,7 @@ export default async function DashboardPage() {
               <h2 className="text-xl font-semibold">Récent</h2>
               <a href="/stats" className="text-sm text-primary hover:underline">Voir tout</a>
             </div>
-            
+
             <Card>
               <CardContent className="p-0">
                 {transactions.length === 0 ? (
@@ -89,7 +91,7 @@ export default async function DashboardPage() {
                   </p>
                 ) : (
                   <div className="divide-y">
-                    {transactions.map((t:any) => (
+                    {transactions.map((t: any) => (
                       <div key={t.id} className="flex items-center justify-between p-4">
                         <div className="flex items-center gap-4">
                           <div className="text-xl bg-muted p-2 rounded-full w-10 h-10 flex items-center justify-center">
@@ -98,7 +100,7 @@ export default async function DashboardPage() {
                           <div>
                             <p className="font-medium text-sm">{t.description}</p>
                             <p className="text-xs text-muted-foreground">
-                              {t.category.name} 
+                              {t.category.name}
                               {t.subCategory && ` • ${t.subCategory.name}`}
                             </p>
                           </div>

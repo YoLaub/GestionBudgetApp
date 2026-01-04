@@ -5,12 +5,14 @@ import { checkUser } from "@/lib/check-user"
 
 export async function getMonthlyStats(year: number, month: number) {
   const user = await checkUser()
-  if (!user) return { expense: 0, income: 0, balance: 0, categories: [] }
+  // On ajoute le champ rollover à l'objet par défaut
+  if (!user) return { expense: 0, income: 0, balance: 0, rollover: 0, categories: [] }
 
   const startDate = new Date(year, month - 1, 1)
   const endDate = new Date(year, month, 0, 23, 59, 59)
 
   try {
+    // --- 1. Transactions du Mois en cours ---
     const transactions = await prisma.transaction.findMany({
       where: {
         userId: user.id,
@@ -21,10 +23,10 @@ export async function getMonthlyStats(year: number, month: number) {
       },
       include: {
         category: true,
-        subCategory: true // On récupère aussi le type pour l'affichage détaillé
+        subCategory: true
       },
       orderBy: {
-        date: 'desc' // Pour que la liste détaillée soit triée
+        date: 'desc'
       }
     })
 
@@ -38,16 +40,28 @@ export async function getMonthlyStats(year: number, month: number) {
 
     const balance = incomeTotal - expenseTotal
 
-    // Groupement des Dépenses pour l'affichage
+    // --- 2. Calcul du Report (Historique avant ce mois) ---
+    // On groupe par type (Revenu vs Dépense) pour tout ce qui est AVANT le 1er du mois
+    const pastStats = await prisma.transaction.groupBy({
+      by: ['type'],
+      where: {
+        userId: user.id,
+        date: {
+          lt: startDate // Strictement avant le début du mois
+        }
+      },
+      _sum: {
+        amount: true
+      }
+    })
+
+    const pastIncome = pastStats.find(s => s.type === 'INCOME')?._sum.amount || 0
+    const pastExpense = pastStats.find(s => s.type === 'EXPENSE')?._sum.amount || 0
+    const rollover = pastIncome - pastExpense
+
+    // --- 3. Groupement des catégories (pour le mois en cours) ---
     const expenseTransactions = transactions.filter(t => t.type === 'EXPENSE')
-    const categoryMap = new Map<string, {
-      categoryId: string
-      name: string
-      icon: string | null
-      total: number
-      transactionCount: number
-      transactions: typeof expenseTransactions // Nouveau champ: la liste des transactions
-    }>()
+    const categoryMap = new Map<string, any>()
 
     expenseTransactions.forEach(t => {
       const catId = t.categoryId
@@ -58,26 +72,27 @@ export async function getMonthlyStats(year: number, month: number) {
           icon: t.category.icon,
           total: 0,
           transactionCount: 0,
-          transactions: [] // Initialisation liste vide
+          transactions: []
         })
       }
-      const current = categoryMap.get(catId)!
+      const current = categoryMap.get(catId)
       current.total += t.amount
       current.transactionCount += 1
-      current.transactions.push(t) // Ajout de la transaction à la liste
+      current.transactions.push(t)
     })
 
-    const categories = Array.from(categoryMap.values()).sort((a, b) => b.total - a.total)
+    const categories = Array.from(categoryMap.values()).sort((a: any, b: any) => b.total - a.total)
 
     return JSON.parse(JSON.stringify({
       expense: expenseTotal,
       income: incomeTotal,
-      balance: balance,
+      balance: balance, // Solde du mois pur
+      rollover: rollover, // Report des mois précédents
       categories
     }))
 
   } catch (error) {
     console.error("Erreur calcul stats:", error)
-    return { expense: 0, income: 0, balance: 0, categories: [] }
+    return { expense: 0, income: 0, balance: 0, rollover: 0, categories: [] }
   }
 }

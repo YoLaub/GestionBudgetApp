@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet, ChevronDown } from "lucide-react"
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet, History, ChevronDown } from "lucide-react"
 import { getMonthlyStats } from "@/actions/stats"
 import { BudgetCharts } from "@/components/charts/budget-charts"
 import { Button } from "@/components/ui/button"
@@ -19,19 +19,20 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
   const currentMonth = params.month ? parseInt(params.month) : now.getMonth() + 1
   const currentYear = params.year ? parseInt(params.year) : now.getFullYear()
 
-  // Navigation
   const prevDate = new Date(currentYear, currentMonth - 2, 1)
   const nextDate = new Date(currentYear, currentMonth, 1)
 
-  // Appel serveur
-  const { expense, income, balance, categories } = await getMonthlyStats(currentYear, currentMonth)
+  const { expense, income, balance, rollover, categories } = await getMonthlyStats(currentYear, currentMonth)
+  
+  // Solde Total disponible = Report + Solde du mois
+  const totalBalance = rollover + balance
 
   const monthName = new Date(currentYear, currentMonth - 1, 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' })
 
   return (
     <main className="container mx-auto p-4 space-y-6 pb-24">
       
-      {/* --- Header Mois --- */}
+      {/* Header Mois */}
       <div className="flex items-center justify-between bg-card p-4 rounded-lg border shadow-sm">
         <Button variant="ghost" size="icon" asChild>
           <Link href={`/stats?month=${prevDate.getMonth() + 1}&year=${prevDate.getFullYear()}`}>
@@ -46,49 +47,68 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         </Button>
       </div>
 
-      {/* --- 3 KPI Cards --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* --- KPI Cards avec Report --- */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Report N-1 */}
+        <Card className="bg-muted/50">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Report N-1</CardTitle>
+            <History className="h-3 w-3 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className={`text-lg font-bold ${rollover < 0 ? 'text-red-500' : 'text-blue-600'}`}>
+              {rollover > 0 ? '+' : ''}{rollover.toFixed(2)} €
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Revenus */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenus</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Revenus</CardTitle>
+            <TrendingUp className="h-3 w-3 text-green-500" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">+{income.toFixed(2)} €</div>
+          <CardContent className="p-4 pt-0">
+            <div className="text-lg font-bold text-green-600">+{income.toFixed(2)} €</div>
           </CardContent>
         </Card>
 
         {/* Dépenses */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dépenses</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Dépenses</CardTitle>
+            <TrendingDown className="h-3 w-3 text-red-500" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">-{expense.toFixed(2)} €</div>
+          <CardContent className="p-4 pt-0">
+            <div className="text-lg font-bold text-red-600">-{expense.toFixed(2)} €</div>
           </CardContent>
         </Card>
 
-        {/* Solde */}
-        <Card className={balance < 0 ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-foreground">Solde du mois</CardTitle>
-            <Wallet className="h-4 w-4 text-foreground" />
+        {/* Solde CUMULÉ (La vraie richesse) */}
+        <Card className={totalBalance < 0 ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
+            <CardTitle className="text-xs font-medium text-foreground">Solde Cumulé</CardTitle>
+            <Wallet className="h-3 w-3 text-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${balance < 0 ? 'text-red-700' : 'text-green-700'}`}>
-              {balance > 0 ? '+' : ''}{balance.toFixed(2)} €
+          <CardContent className="p-4 pt-0">
+            <div className={`text-lg font-bold ${totalBalance < 0 ? 'text-red-700' : 'text-green-700'}`}>
+              {totalBalance > 0 ? '+' : ''}{totalBalance.toFixed(2)} €
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              (Mois: {(income - expense) > 0 ? '+' : ''}{(income - expense).toFixed(2)}€)
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* --- Liste détaillée (Avec Drill-down) --- */}
+      {/* --- Graphiques --- */}
+      <BudgetCharts data={categories} totalExpenses={expense} />
+
+      {/* --- Liste détaillée --- */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Détails des dépenses</h3>
         <div className="grid gap-4">
-          {categories.map((cat:any) => {
+          {categories.map((cat: any) => {
             const percentage = expense > 0 ? (cat.total / expense) * 100 : 0
             
             return (
@@ -119,7 +139,6 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
                     </CardContent>
                   </summary>
                   
-                  {/* Liste des transactions détaillée (cachée par défaut) */}
                   <div className="bg-muted/30 border-t px-4 py-2 divide-y divide-border/50 text-sm">
                     {cat.transactions.map((t: any) => (
                       <div key={t.id} className="flex justify-between items-center py-3">
@@ -151,9 +170,6 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           )}
         </div>
       </div>
-
-            {/* --- Graphiques (Dépenses uniquement) --- */}
-      <BudgetCharts data={categories} totalExpenses={expense} />
     </main>
   )
 }
