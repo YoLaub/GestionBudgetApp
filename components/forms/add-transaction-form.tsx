@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useForm, SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CalendarIcon, Loader2, Plus, Check, X } from "lucide-react" // Ajout d'icônes
+import { CalendarIcon, Loader2, Plus, Check, X } from "lucide-react"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 
@@ -33,7 +33,6 @@ import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { createTransaction } from "@/actions/transactions"
-// Import de la nouvelle action
 import { createSubCategory } from "@/actions/categories"
 import { TransactionSchema, TransactionValues } from "@/lib/schemas"
 
@@ -74,10 +73,12 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
   // Surveillance
   const selectedCategoryId = form.watch("categoryId")
   
-  // On utilise localCategories au lieu de props.categories pour pouvoir le mettre à jour
   const safeCategories = Array.isArray(localCategories) ? localCategories : []
-  const selectedCategory = safeCategories.find(c => c.id === selectedCategoryId)
-  const subCategories = selectedCategory?.subCategories || []
+  // const selectedCategory = safeCategories.find(c => c.id === selectedCategoryId) // (Non utilisé ici directement mais utile si besoin)
+  
+  // Correction: On récupère les sous-catégories de la catégorie sélectionnée
+  const currentCategory = safeCategories.find(c => c.id === selectedCategoryId)
+  const subCategories = currentCategory?.subCategories || []
 
   // --- LOGIQUE D'AJOUT DE TYPE ---
   const handleCreateType = async () => {
@@ -87,7 +88,7 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
     const result = await createSubCategory(selectedCategoryId, newTypeName)
     
     if (result.success && result.data) {
-      // 1. Mettre à jour la liste locale pour affichage immédiat
+      // 1. Mettre à jour la liste locale
       const updatedCategories = localCategories.map(cat => {
         if (cat.id === selectedCategoryId) {
           return {
@@ -99,7 +100,7 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
       })
       setLocalCategories(updatedCategories)
 
-      // 2. Sélectionner automatiquement le nouveau type
+      // 2. Sélectionner le nouveau type
       form.setValue("subCategoryId", result.data.id)
 
       // 3. Reset UI
@@ -127,7 +128,6 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
           categoryId: "",
           subCategoryId: "",
         })
-        // Reset aussi le mode création au cas où
         setIsCreatingType(false)
       }
     } catch (error) {
@@ -196,22 +196,7 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
               )}
             />
 
-            {/* Libellé */}
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Libellé</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: McDo, Loyer..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* ZONES : Catégorie & Type */}
+            {/* Catégorie */}
             <div className="grid grid-cols-2 gap-4">
               
               {/* Colonne 1 : Catégorie */}
@@ -224,7 +209,6 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                     <Select 
                       onValueChange={(val) => {
                         field.onChange(val)
-                        // Quand on change de catégorie, on reset le sous-type
                         form.setValue("subCategoryId", "")
                         setIsCreatingType(false)
                       }} 
@@ -248,7 +232,7 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                 )}
               />
 
-              {/* Colonne 2 : Type (Sous-catégorie) - MODE DYNAMIQUE */}
+              {/* Colonne 2 : Type (Sous-catégorie) */}
               <FormField
                 control={form.control}
                 name="subCategoryId"
@@ -256,7 +240,6 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                   <FormItem>
                     <FormLabel>Type</FormLabel>
                     
-                    {/* CAS 1 : Mode Création (Input) */}
                     {isCreatingType ? (
                       <div className="flex gap-2">
                         <Input 
@@ -289,7 +272,6 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                         </Button>
                       </div>
                     ) : (
-                      /* CAS 2 : Mode Sélection (Select) */
                       <Select 
                         onValueChange={(val) => {
                           if (val === "CREATE_NEW") {
@@ -312,7 +294,6 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                               {sub.name}
                             </SelectItem>
                           ))}
-                          {/* Option spéciale pour créer */}
                           <SelectItem value="CREATE_NEW" className="text-blue-600 font-medium bg-blue-50 focus:bg-blue-100 cursor-pointer border-t mt-1">
                             <div className="flex items-center">
                               <Plus className="mr-2 h-4 w-4" />
@@ -327,6 +308,23 @@ export function AddTransactionForm({ categories = [] }: AddTransactionFormProps)
                 )}
               />
             </div>
+
+            {/* Libellé (Déplacé en dessous et rendu optionnel) */}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Libellé <span className="text-xs text-muted-foreground font-normal">(Optionnel)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: McDo, Loyer..." {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Date Picker */}
             <FormField
