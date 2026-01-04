@@ -1,0 +1,133 @@
+
+// --------------------------------------------------------
+// SCHEMA PRISMA - BUDGET APP (V2)
+// --------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // Le Pooler (Port 6543)
+  directUrl = env("DIRECT_URL")    // La connexion Directe (Port 5432)
+}
+
+// --- ENUMS ---
+
+enum TransactionType {
+  INCOME  // Revenu
+  EXPENSE // Dépense
+}
+
+enum RecurringInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// --- MODÈLES ---
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  email       String   @unique
+  clerkUserId String   @unique
+ 
+  // Relations
+  settings      UserSettings?
+  categories    Category[]    
+  transactions  Transaction[]
+  budgets       Budget[]
+}
+
+model UserSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  currency          String  @default("EUR")
+  isRolloverEnabled Boolean @default(true) // Gestion du Report (N-1)
+}
+
+// Catégorie Principale (ex: "Nourriture", "Transport")
+model Category {
+  id     String @id @default(cuid())
+  name   String
+  icon   String? // Emoji
+  type   TransactionType @default(EXPENSE)
+  
+  // Si userId est null => Catégorie Système (globale)
+  // Si userId est rempli => Catégorie Perso
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  subCategories SubCategory[] // Relation vers les "Types"
+  transactions  Transaction[]
+  budgets       Budget[]
+
+  @@unique([name, userId])
+}
+
+// Sous-Catégorie / Type (ex: "Restaurant", "Courses", "Boulangerie")
+model SubCategory {
+  id   String @id @default(cuid())
+  name String
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  @@unique([name, categoryId])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  amount      Float
+  date        DateTime // Date de l'opération
+  
+  // Le "Libellé" (ex: "McDo Paris 10", "Leclerc")
+  description String   
+
+  type        TransactionType
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // On lie à la Catégorie Mère (ex: Nourriture)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  // On lie au Type / Sous-catégorie (ex: Restaurant)
+  // Optionnel (?) : Si l'user ne veut pas préciser, on laisse null.
+  subCategoryId String?
+  subCategory   SubCategory? @relation(fields: [subCategoryId], references: [id])
+
+  // Gestion récurrence
+  isRecurring Boolean            @default(false)
+  interval    RecurringInterval? 
+  nextDate    DateTime?          
+
+  @@index([userId, date])
+}
+
+model Budget {
+  id     String @id @default(cuid())
+  amount Float  // Limite (ex: 500€)
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, categoryId])
+}
